@@ -61,6 +61,7 @@ export interface Category {
   id: number
   name: string
   type?: "normal" | "qa" | string
+  visibility?: 0 | 1 | 2 | number
   description?: string
   logo?: string
   parentId?: number

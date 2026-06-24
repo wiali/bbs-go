@@ -2,6 +2,8 @@ package api
 
 import (
 	"bbs-go/internal/handlers/render"
+	"bbs-go/internal/models"
+	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/search"
 	"bbs-go/internal/services"
 
@@ -30,8 +32,23 @@ func SearchTopic(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
+	user := common.GetCurrentUser(ctx)
+	list = filterSearchTopicsByCategoryVisibility(user, list)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSearchTopics(list), cast.ToString(cursor+1), len(list) >= limit))
 
+}
+
+func filterSearchTopicsByCategoryVisibility(user *models.User, list []search.TopicDocument) []search.TopicDocument {
+	if len(list) == 0 {
+		return nil
+	}
+	filtered := make([]search.TopicDocument, 0, len(list))
+	for _, doc := range list {
+		if doc.CategoryId <= 0 || services.CategoryService.CanViewCategory(user, services.CategoryService.Get(doc.CategoryId)) {
+			filtered = append(filtered, doc)
+		}
+	}
+	return filtered
 }
 
 func SearchArticle(ctx *gin.Context) {

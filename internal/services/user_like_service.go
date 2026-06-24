@@ -101,6 +101,9 @@ func (s *userLikeService) TopicLike(userId int64, topicId int64) error {
 	if topic == nil || topic.Status != constants.StatusOk {
 		return errors.New("topic not found")
 	}
+	if !CategoryService.CanViewTopic(UserService.Get(userId), topic) {
+		return errors.New("topic not found")
+	}
 
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		if err := s.like(ctx, userId, constants.EntityTopic, topicId); err != nil {
@@ -125,6 +128,9 @@ func (s *userLikeService) TopicLike(userId int64, topicId int64) error {
 func (s *userLikeService) TopicUnLike(userId int64, topicId int64) error {
 	topic := repositories.TopicRepository.Get(sqls.DB(), topicId)
 	if topic == nil || topic.Status != constants.StatusOk {
+		return errors.New("topic not found")
+	}
+	if !CategoryService.CanViewTopic(UserService.Get(userId), topic) {
 		return errors.New("topic not found")
 	}
 

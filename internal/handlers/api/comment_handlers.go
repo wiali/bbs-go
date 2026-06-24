@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bbs-go/internal/models"
+	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/req"
 	"bbs-go/internal/pkg/common"
+	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/spam"
 	"strconv"
 
@@ -23,6 +26,13 @@ func CommentComments(ctx *gin.Context) {
 		entityId      = common.GetID(ctx, "entityId")
 		currentUser   = common.GetCurrentUser(ctx)
 	)
+	if entityType == constants.EntityTopic {
+		topic := services.TopicService.Get(entityId)
+		if !services.CategoryService.CanViewTopic(currentUser, topic) {
+			ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+			return
+		}
+	}
 	comments, cursor, hasMore := services.CommentService.GetComments(entityType, entityId, cursor)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildComments(comments, currentUser, true, false), strconv.FormatInt(cursor, 10), hasMore))
 
@@ -34,6 +44,10 @@ func CommentReplies(ctx *gin.Context) {
 		commentId, _ = params.GetInt64(ctx, "commentId")
 	)
 	currentUser := common.GetCurrentUser(ctx)
+	if !canViewCommentThread(currentUser, commentId) {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+		return
+	}
 	comments, cursor, hasMore := services.CommentService.GetReplies(commentId, cursor, 10)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildComments(comments, currentUser, false, true), strconv.FormatInt(cursor, 10), hasMore))
 
@@ -56,6 +70,10 @@ func CommentCreate(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
+	if !canCommentOnEntity(user, body) {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+		return
+	}
 
 	comment, err := services.CommentService.Publish(user.Id, body)
 	if err != nil {
@@ -65,6 +83,36 @@ func CommentCreate(ctx *gin.Context) {
 
 	ginx.WriteJSON(ctx, render.BuildComment(comment))
 
+}
+
+func canCommentOnEntity(user *models.User, body req.CreateCommentReq) bool {
+	entityId := body.DecodedEntityId()
+	switch body.EntityType {
+	case constants.EntityTopic:
+		return services.CategoryService.CanViewTopic(user, services.TopicService.Get(entityId))
+	case constants.EntityComment:
+		return canViewCommentThread(user, entityId)
+	default:
+		return true
+	}
+}
+
+func canViewCommentThread(user *models.User, commentId int64) bool {
+	for i := 0; i < 20 && commentId > 0; i++ {
+		comment := services.CommentService.Get(commentId)
+		if comment == nil || comment.Status != constants.StatusOk {
+			return false
+		}
+		switch comment.EntityType {
+		case constants.EntityTopic:
+			return services.CategoryService.CanViewTopic(user, services.TopicService.Get(comment.EntityId))
+		case constants.EntityComment:
+			commentId = comment.EntityId
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func CommentRemove(ctx *gin.Context) {

@@ -250,7 +250,7 @@ func UserFavorites(ctx *gin.Context) {
 		hasMore = len(favorites) >= limit
 	}
 
-	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildFavorites(favorites), strconv.FormatInt(cursor, 10), hasMore))
+	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildFavorites(favorites, user), strconv.FormatInt(cursor, 10), hasMore))
 
 }
 

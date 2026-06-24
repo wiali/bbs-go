@@ -13,7 +13,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-func BuildFavorite(favorite *models.Favorite) *resp.FavoriteResponse {
+func BuildFavorite(favorite *models.Favorite, currentUser *models.User) *resp.FavoriteResponse {
 	rsp := &resp.FavoriteResponse{}
 	rsp.Id = favorite.Id
 	rsp.EntityType = favorite.EntityType
@@ -38,7 +38,7 @@ func BuildFavorite(favorite *models.Favorite) *resp.FavoriteResponse {
 		}
 	} else {
 		topic := services.TopicService.Get(favorite.EntityId)
-		if topic == nil || topic.Status != constants.StatusOk {
+		if topic == nil || topic.Status != constants.StatusOk || !services.CategoryService.CanViewTopic(currentUser, topic) {
 			rsp.Deleted = true
 		} else {
 			rsp.Url = bbsurls.TopicUrl(topic.Id)
@@ -50,13 +50,13 @@ func BuildFavorite(favorite *models.Favorite) *resp.FavoriteResponse {
 	return rsp
 }
 
-func BuildFavorites(favorites []models.Favorite) []resp.FavoriteResponse {
+func BuildFavorites(favorites []models.Favorite, currentUser *models.User) []resp.FavoriteResponse {
 	if len(favorites) == 0 {
 		return nil
 	}
 	var responses []resp.FavoriteResponse
 	for _, favorite := range favorites {
-		responses = append(responses, *BuildFavorite(&favorite))
+		responses = append(responses, *BuildFavorite(&favorite, currentUser))
 	}
 	return responses
 }

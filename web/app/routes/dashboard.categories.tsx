@@ -65,6 +65,12 @@ export default function DashboardCategoriesRoute() {
             : t("dashboard.categoryTypes.normal"),
       },
       {
+        key: "visibility",
+        label: dashboardData.label(t, "visibility"),
+        render: (record) =>
+          dashboardData.categoryVisibilityCell(t, record.visibility),
+      },
+      {
         key: "description",
         label: dashboardData.label(t, "description"),
         className: "min-w-72",
@@ -104,6 +110,13 @@ export default function DashboardCategoriesRoute() {
         type: "select",
         required: true,
         options: dashboardData.categoryTypeOptionsFor(t),
+      },
+      {
+        name: "visibility",
+        label: dashboardData.label(t, "visibility"),
+        type: "select",
+        required: true,
+        options: dashboardData.categoryVisibilityOptionsFor(t),
       },
       { name: "name", label: dashboardData.label(t, "name"), required: true },
       {

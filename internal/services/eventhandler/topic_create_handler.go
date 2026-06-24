@@ -18,6 +18,9 @@ func handleTopicCreateEvent(i interface{}) {
 
 	services.UserFollowService.ScanFans(e.UserId, func(fansId int64) {
 		slog.With(slog.Any("topicId", e.TopicId), slog.Any("userId", e.UserId), slog.Any("fansId", fansId)).Info("用户关注，处理帖子")
+		if !services.CategoryService.CanViewTopic(services.UserService.Get(fansId), services.TopicService.Get(e.TopicId)) {
+			return
+		}
 		if err := services.UserFeedService.Create(&models.UserFeed{
 			UserId:     fansId,
 			DataId:     e.TopicId,

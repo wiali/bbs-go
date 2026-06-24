@@ -11,6 +11,7 @@ import (
 	"bbs-go/internal/models/constants"
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/errs"
+	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/services"
 )
 
@@ -32,6 +33,11 @@ func FavoriteAdd(ctx *gin.Context) {
 	var err error
 	switch req.EntityType {
 	case constants.EntityTopic:
+		topic := services.TopicService.Get(entityId)
+		if !services.CategoryService.CanViewTopic(user, topic) {
+			ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
+			return
+		}
 		err = services.FavoriteService.AddTopicFavorite(user.Id, entityId)
 	case constants.EntityArticle:
 		err = services.FavoriteService.AddArticleFavorite(user.Id, entityId)

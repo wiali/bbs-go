@@ -178,6 +178,14 @@ const (
 	CategoryTypeQA     CategoryType = "qa"
 )
 
+type CategoryVisibility int
+
+const (
+	CategoryVisibilityPublic CategoryVisibility = 0 // 公开
+	CategoryVisibilityLogin  CategoryVisibility = 1 // 登录可见
+	CategoryVisibilityOwner  CategoryVisibility = 2 // 站长可见
+)
+
 type QaStatus string
 
 const (

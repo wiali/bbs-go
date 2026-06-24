@@ -160,6 +160,10 @@ func (s *attachmentService) Download(attachmentId string, userId int64) (redirec
 	if topic == nil || topic.Status == constants.StatusDeleted {
 		return "", errors.New(locales.Get("attachment.not_found"))
 	}
+	user := repositories.UserRepository.Get(sqls.DB(), userId)
+	if !CategoryService.CanViewTopic(user, topic) {
+		return "", errors.New(locales.Get("attachment.no_permission"))
+	}
 
 	// 已购买：直接放行
 	if repositories.AttachmentDownloadLogRepository.Exists(sqls.DB(), userId, attachmentId) {

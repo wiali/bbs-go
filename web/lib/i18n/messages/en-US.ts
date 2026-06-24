@@ -217,6 +217,11 @@ const enUS = {
       normal: "Topic",
       qa: "Q&A",
     },
+    categoryVisibility: {
+      public: "Public",
+      login: "Login Required",
+      owner: "Owner Only",
+    },
     forbiddenWordTypes: {
       word: "Word",
       regex: "Regex",
@@ -669,6 +674,7 @@ const enUS = {
       email: "Email",
       password: "Password",
       type: "Type",
+      visibility: "Visibility",
       gender: "Gender",
       avatar: "Avatar",
       roles: "Roles",

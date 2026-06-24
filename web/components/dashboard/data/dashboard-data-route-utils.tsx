@@ -175,6 +175,21 @@ export function categoryTypeOptionsFor(t: TFunction) {
   ]
 }
 
+export function categoryVisibilityOptionsFor(t: TFunction) {
+  return [
+    { label: t("dashboard.categoryVisibility.public"), value: 0 },
+    { label: t("dashboard.categoryVisibility.login"), value: 1 },
+    { label: t("dashboard.categoryVisibility.owner"), value: 2 },
+  ]
+}
+
+export function categoryVisibilityCell(t: TFunction, value: unknown) {
+  const visibility = Number(value || 0)
+  if (visibility === 1) return t("dashboard.categoryVisibility.login")
+  if (visibility === 2) return t("dashboard.categoryVisibility.owner")
+  return t("dashboard.categoryVisibility.public")
+}
+
 export function codeBlock(value: unknown) {
   const text =
     typeof value === "string"

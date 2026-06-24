@@ -216,14 +216,15 @@ type Favorite struct {
 // Category 话题节点（支持一级 parent_id=0 / 二级 parent_id>0）
 type Category struct {
 	Model
-	ParentId    int64                  `gorm:"not null;default:0;index:idx_category_parent_id" json:"parentId" form:"parentId"` // 父节点ID，0=一级
-	Name        string                 `gorm:"size:32;unique" json:"name" form:"name"`                                          // 名称（一级全局唯一；二级同父下唯一，应用层校验）
-	Type        constants.CategoryType `gorm:"size:16;not null;default:normal;index:idx_category_type" json:"type" form:"type"` // 节点类型：normal/qa
-	Description string                 `gorm:"size:1024" json:"description" form:"description"`                                 // 描述
-	Logo        string                 `gorm:"size:1024" json:"logo" form:"logo"`                                               // 图标
-	SortNo      int                    `gorm:"type:int(11);index:idx_category_sort_no" json:"sortNo" form:"sortNo"`             // 排序编号
-	Status      int                    `gorm:"type:int(11);not null" json:"status" form:"status"`                               // 状态
-	CreateTime  int64                  `json:"createTime" form:"createTime"`                                                    // 创建时间
+	ParentId    int64                        `gorm:"not null;default:0;index:idx_category_parent_id" json:"parentId" form:"parentId"`                   // 父节点ID，0=一级
+	Name        string                       `gorm:"size:32;unique" json:"name" form:"name"`                                                            // 名称（一级全局唯一；二级同父下唯一，应用层校验）
+	Type        constants.CategoryType       `gorm:"size:16;not null;default:normal;index:idx_category_type" json:"type" form:"type"`                   // 节点类型：normal/qa
+	Visibility  constants.CategoryVisibility `gorm:"type:int(11);not null;default:0;index:idx_category_visibility" json:"visibility" form:"visibility"` // 可见性：0公开/1登录可见/2站长可见
+	Description string                       `gorm:"size:1024" json:"description" form:"description"`                                                   // 描述
+	Logo        string                       `gorm:"size:1024" json:"logo" form:"logo"`                                                                 // 图标
+	SortNo      int                          `gorm:"type:int(11);index:idx_category_sort_no" json:"sortNo" form:"sortNo"`                               // 排序编号
+	Status      int                          `gorm:"type:int(11);not null" json:"status" form:"status"`                                                 // 状态
+	CreateTime  int64                        `json:"createTime" form:"createTime"`                                                                      // 创建时间
 }
 
 // 话题节点

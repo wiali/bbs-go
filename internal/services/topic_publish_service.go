@@ -228,6 +228,10 @@ func (s topicPublishService) checkParams(userId int64, form req.CreateTopicReq) 
 	if category == nil || category.Status != constants.StatusOk {
 		return errors.New(locales.Get("topic.category_not_found"))
 	}
+	user := repositories.UserRepository.Get(sqls.DB(), userId)
+	if !CategoryService.CanViewCategory(user, category) {
+		return errors.New(locales.Get("topic.no_permission"))
+	}
 	if !category.Type.Supports(form.Type) {
 		return errors.New(locales.Get("topic.category_type_mismatch"))
 	}
@@ -260,7 +264,6 @@ func (s topicPublishService) checkParams(userId int64, form req.CreateTopicReq) 
 					}
 					return errors.New(locales.Getf("topic.bounty_out_of_range_max", maxVal))
 				}
-				user := repositories.UserRepository.Get(sqls.DB(), userId)
 				if user == nil || user.Score < form.BountyScore {
 					return errors.New(locales.Get("topic.insufficient_score"))
 				}

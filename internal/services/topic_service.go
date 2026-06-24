@@ -156,6 +156,10 @@ func (s *topicService) Edit(userId, topicId int64, form req.EditTopicReq) error 
 	if topic == nil {
 		return errors.New(locales.Get("common.not_found"))
 	}
+	user := repositories.UserRepository.Get(sqls.DB(), userId)
+	if !CategoryService.CanViewCategory(user, category) {
+		return errors.New(locales.Get("topic.no_permission"))
+	}
 	// 编辑时附件数量校验（仅帖子类型）
 	if topic.Type == constants.TopicTypeTopic && form.AttachmentIds != nil {
 		attCfg := SysConfigService.GetAttachmentConfig()
@@ -278,12 +282,12 @@ func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qa
 		}
 		return
 	} else {
-		return s._GetCategoryTopics(categoryId, cursor, limit, qaStatus, sort)
+		return s._GetCategoryTopics(user, categoryId, cursor, limit, qaStatus, sort)
 	}
 }
 
 // _GetCategoryTopics 帖子列表（最新、推荐、节点）
-func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, qaStatus, sort string) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) _GetCategoryTopics(user *models.User, categoryId, cursor int64, limit int, qaStatus, sort string) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	cnd := sqls.NewCnd()
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
@@ -300,6 +304,9 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 		cnd.Eq("type", constants.TopicTypeQA)
 		cnd.Eq("qa_status", qaStatus)
 	}
+	if hiddenCategoryIds := CategoryService.HiddenCategoryIds(user); len(hiddenCategoryIds) > 0 {
+		cnd.Where("category_id not in ?", hiddenCategoryIds)
+	}
 	if sort == "latestPublish" {
 		if cursor > 0 {
 			cnd.Lt("id", cursor)
@@ -311,7 +318,7 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 		}
 		cnd.Eq("status", constants.StatusOk).Desc("last_comment_time").Limit(limit)
 	}
-	topics = repositories.TopicRepository.Find(sqls.DB(), cnd)
+	topics = CategoryService.FilterVisibleTopics(user, repositories.TopicRepository.Find(sqls.DB(), cnd))
 	if len(topics) > 0 {
 		if sort == "latestPublish" {
 			nextCursor = topics[len(topics)-1].Id
@@ -348,6 +355,7 @@ func (s *topicService) _GetFollowTopics(userId int64, cursor int64) (topics []mo
 		topicIds = append(topicIds, item.DataId)
 	}
 	topics = TopicService.GetTopicByIds(topicIds)
+	topics = CategoryService.FilterVisibleTopics(UserService.Get(userId), topics)
 
 	return
 }
@@ -379,6 +387,12 @@ func (s *topicService) GetTagTopics(tagId, cursor int64) (topics []models.Topic,
 		nextCursor = cursor
 	}
 	hasMore = len(topicTags) >= limit
+	return
+}
+
+func (s *topicService) GetVisibleTagTopics(user *models.User, tagId, cursor int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
+	topics, nextCursor, hasMore = s.GetTagTopics(tagId, cursor)
+	topics = CategoryService.FilterVisibleTopics(user, topics)
 	return
 }
 
@@ -484,7 +498,7 @@ func (s *topicService) ScanDescWithDate(dateFrom, dateTo int64, callback func(to
 	}
 }
 
-func (s *topicService) GetUserTopics(userId, cursor int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) GetUserTopics(viewer *models.User, userId, cursor int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	limit := 20
 	cnd := sqls.NewCnd()
 	if userId > 0 {
@@ -494,7 +508,10 @@ func (s *topicService) GetUserTopics(userId, cursor int64) (topics []models.Topi
 		cnd.Lt("id", cursor)
 	}
 	cnd.Eq("status", constants.StatusOk).Desc("id").Limit(limit)
-	topics = repositories.TopicRepository.Find(sqls.DB(), cnd)
+	if hiddenCategoryIds := CategoryService.HiddenCategoryIds(viewer); len(hiddenCategoryIds) > 0 {
+		cnd.Where("category_id not in ?", hiddenCategoryIds)
+	}
+	topics = CategoryService.FilterVisibleTopics(viewer, repositories.TopicRepository.Find(sqls.DB(), cnd))
 	if len(topics) > 0 {
 		nextCursor = topics[len(topics)-1].Id
 		hasMore = len(topics) >= limit
@@ -504,7 +521,7 @@ func (s *topicService) GetUserTopics(userId, cursor int64) (topics []models.Topi
 	return
 }
 
-func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus string) []models.Topic {
+func (s *topicService) GetStickyTopics(user *models.User, categoryId int64, limit int, qaStatus string) []models.Topic {
 	cnd := sqls.NewCnd().Eq("sticky", true).Eq("status", constants.StatusOk).Desc("sticky_time").Limit(limit)
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
@@ -518,7 +535,10 @@ func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus str
 		cnd.Eq("type", constants.TopicTypeQA)
 		cnd.Eq("qa_status", qaStatus)
 	}
-	return s.Find(cnd)
+	if hiddenCategoryIds := CategoryService.HiddenCategoryIds(user); len(hiddenCategoryIds) > 0 {
+		cnd.Where("category_id not in ?", hiddenCategoryIds)
+	}
+	return CategoryService.FilterVisibleTopics(user, s.Find(cnd))
 }
 
 func (s *topicService) SetSticky(topicId int64, sticky bool) error {

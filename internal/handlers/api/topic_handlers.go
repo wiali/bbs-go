@@ -66,16 +66,19 @@ func topicGetBuiltInCategories() []resp.CategoryResponse {
 // 收藏
 // 设置置顶
 func CategoryNavs(ctx *gin.Context) {
+	user := common.GetCurrentUser(ctx)
+	categories := services.CategoryService.FilterVisibleCategories(user, services.CategoryService.GetTopLevelCategories())
 
-	categories := append(
+	responses := append(
 		topicGetBuiltInCategories(),
-		render.BuildCategoryResponses(services.CategoryService.GetTopLevelCategories())...,
+		render.BuildCategoryResponses(categories)...,
 	)
-	ginx.WriteJSON(ctx, categories)
+	ginx.WriteJSON(ctx, responses)
 
 }
 
 func Categories(ctx *gin.Context) {
+	user := common.GetCurrentUser(ctx)
 	topicType := constants.TopicType(params.FormValueIntDefault(ctx, "type", -1))
 	var categoryList []models.Category
 	if topicType >= 0 {
@@ -83,6 +86,7 @@ func Categories(ctx *gin.Context) {
 	} else {
 		categoryList = services.CategoryService.GetCategories()
 	}
+	categoryList = services.CategoryService.FilterVisibleCategories(user, categoryList)
 	categories := render.BuildCategoryResponseTree(0, categoryList)
 	ginx.WriteJSON(ctx, categories)
 
@@ -103,7 +107,12 @@ func Category(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
 		return
 	}
-	ginx.WriteJSON(ctx, render.BuildCategoryWithChildren(category))
+	user := common.GetCurrentUser(ctx)
+	if !services.CategoryService.CanViewCategory(user, category) {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+		return
+	}
+	ginx.WriteJSON(ctx, render.BuildCategoryWithVisibleChildren(user, category))
 
 }
 
@@ -167,6 +176,10 @@ func TopicEditForm(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
 		return
 	}
+	if !services.CategoryService.CanViewTopic(user, topic) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
+		return
+	}
 
 	tags := services.TopicService.GetTopicTags(topicId)
 	var tagNames []string
@@ -213,6 +226,10 @@ func TopicEdit(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
 		return
 	}
+	if !services.CategoryService.CanViewTopic(user, topic) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
+		return
+	}
 
 	var form req.EditTopicReq
 	if err := ginx.BindJSON(ctx, &form); err != nil {
@@ -250,6 +267,10 @@ func TopicRemove(ctx *gin.Context) {
 
 	// 非作者、且非站长
 	if topic.UserId != user.Id && !user.HasRole(constants.RoleOwner) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
+		return
+	}
+	if !services.CategoryService.CanViewTopic(user, topic) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
 		return
 	}
@@ -313,6 +334,10 @@ func TopicDetail(ctx *gin.Context) {
 			return
 		}
 	}
+	if !services.CategoryService.CanViewTopic(user, topic) {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+		return
+	}
 
 	services.TopicService.IncrViewCount(topicId) // 增加浏览量
 	ginx.WriteJSON(ctx, render.BuildTopic(ctx, topic))
@@ -323,6 +348,11 @@ func TopicRecentlikes(ctx *gin.Context) {
 	topicIdStr := ctx.Param("id")
 
 	topicId := idcodec.Decode(topicIdStr)
+	topic := services.TopicService.Get(topicId)
+	if !services.CategoryService.CanViewTopic(common.GetCurrentUser(ctx), topic) {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.no_permission")))
+		return
+	}
 	likes := services.UserLikeService.Recent(constants.EntityTopic, topicId, 5)
 	var users []resp.UserInfo
 	for _, like := range likes {
@@ -337,6 +367,7 @@ func TopicRecentlikes(ctx *gin.Context) {
 
 func TopicRecent(ctx *gin.Context) {
 	topics := services.TopicService.Find(sqls.NewCnd().Where("status = ?", constants.StatusOk).Desc("id").Limit(10))
+	topics = services.CategoryService.FilterVisibleTopics(common.GetCurrentUser(ctx), topics)
 	ginx.WriteJSON(ctx, render.BuildSimpleTopics(ctx, topics))
 
 }
@@ -348,7 +379,7 @@ func TopicUserTopics(ctx *gin.Context) {
 		return
 	}
 	cursor := params.FormValueInt64Default(ctx, "cursor", 0)
-	topics, cursor, hasMore := services.TopicService.GetUserTopics(userId, cursor)
+	topics, cursor, hasMore := services.TopicService.GetUserTopics(common.GetCurrentUser(ctx), userId, cursor)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopics(ctx, topics), strconv.FormatInt(cursor, 10), hasMore))
 
 }
@@ -368,7 +399,7 @@ func TopicTopics(ctx *gin.Context) {
 
 	var temp []models.Topic
 	if cursor <= 0 {
-		stickyTopics := services.TopicService.GetStickyTopics(categoryId, 3, qaStatus)
+		stickyTopics := services.TopicService.GetStickyTopics(user, categoryId, 3, qaStatus)
 		temp = append(temp, stickyTopics...)
 	}
 	topics, cursor, hasMore := services.TopicService.GetTopics(user, categoryId, cursor, qaStatus, sort)
@@ -397,6 +428,10 @@ func TopicAcceptAnswer(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, errs.NotLogin())
 		return
 	}
+	if !services.CategoryService.CanViewTopic(user, services.TopicService.Get(topicId)) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
+		return
+	}
 	if err := services.TopicService.AcceptAnswer(topicId, commentId, user.Id, user.IsOwner()); err != nil {
 		ginx.WriteJSON(ctx, err)
 		return
@@ -412,6 +447,10 @@ func TopicUnacceptAnswer(ctx *gin.Context) {
 	user := common.GetCurrentUser(ctx)
 	if user == nil {
 		ginx.WriteJSON(ctx, errs.NotLogin())
+		return
+	}
+	if !services.CategoryService.CanViewTopic(user, services.TopicService.Get(topicId)) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
 		return
 	}
 	if err := services.TopicService.UnacceptAnswer(topicId, user.Id, user.IsOwner()); err != nil {
@@ -431,7 +470,8 @@ func TopicTagTopics(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	topics, cursor, hasMore := services.TopicService.GetTagTopics(tagId, cursor)
+	user := common.GetCurrentUser(ctx)
+	topics, cursor, hasMore := services.TopicService.GetVisibleTagTopics(user, tagId, cursor)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopics(ctx, topics), strconv.FormatInt(cursor, 10), hasMore))
 
 }
@@ -443,6 +483,11 @@ func TopicFavorite(ctx *gin.Context) {
 	user := common.GetCurrentUser(ctx)
 	if user == nil {
 		ginx.WriteJSON(ctx, errs.NotLogin())
+		return
+	}
+	topic := services.TopicService.Get(topicId)
+	if !services.CategoryService.CanViewTopic(user, topic) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("topic.no_permission")))
 		return
 	}
 	err := services.FavoriteService.AddTopicFavorite(user.Id, topicId)
@@ -487,9 +532,10 @@ func TopicHideContent(ctx *gin.Context) {
 		hideContent = ""    // 隐藏内容
 	)
 	topic := services.TopicService.Get(topicId)
-	if topic != nil && topic.Status == constants.StatusOk && strs.IsNotBlank(topic.HideContent) {
+	user := common.GetCurrentUser(ctx)
+	if topic != nil && topic.Status == constants.StatusOk && services.CategoryService.CanViewTopic(user, topic) && strs.IsNotBlank(topic.HideContent) {
 		exists = true
-		if user := common.GetCurrentUser(ctx); user != nil {
+		if user != nil {
 			if user.Id == topic.UserId || services.CommentService.IsCommented(user.Id, constants.EntityTopic, topic.Id) {
 				show = true
 				hideContent = markdown.ToHTML(topic.HideContent)

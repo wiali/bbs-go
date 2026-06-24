@@ -217,6 +217,11 @@ const zhCN = {
       normal: "话题",
       qa: "问答",
     },
+    categoryVisibility: {
+      public: "公开",
+      login: "登录可见",
+      owner: "站长可见",
+    },
     forbiddenWordTypes: {
       word: "词条",
       regex: "正则",
@@ -653,6 +658,7 @@ const zhCN = {
       email: "邮箱",
       password: "密码",
       type: "类型",
+      visibility: "可见性",
       gender: "性别",
       avatar: "头像",
       roles: "角色",

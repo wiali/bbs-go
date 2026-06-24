@@ -20,6 +20,7 @@ func BuildCategory(category *models.Category) *resp.CategoryResponse {
 		ParentId:    category.ParentId,
 		Name:        category.Name,
 		Type:        category.Type,
+		Visibility:  category.Visibility,
 		Logo:        category.Logo,
 		Description: category.Description,
 	}
@@ -32,6 +33,20 @@ func BuildCategoryWithChildren(category *models.Category) *resp.CategoryResponse
 	}
 	if category.ParentId == 0 {
 		children := services.CategoryService.GetChildren(category.Id)
+		if len(children) > 0 {
+			r.Children = BuildCategoryResponses(children)
+		}
+	}
+	return r
+}
+
+func BuildCategoryWithVisibleChildren(user *models.User, category *models.Category) *resp.CategoryResponse {
+	r := BuildCategory(category)
+	if r == nil {
+		return nil
+	}
+	if category.ParentId == 0 {
+		children := services.CategoryService.FilterVisibleCategories(user, services.CategoryService.GetChildren(category.Id))
 		if len(children) > 0 {
 			r.Children = BuildCategoryResponses(children)
 		}
@@ -83,6 +98,7 @@ func BuildCategoryTree(parentId int64, list []models.Category) []resp.CategoryTr
 				ParentId:    category.ParentId,
 				Name:        category.Name,
 				Type:        category.Type,
+				Visibility:  category.Visibility,
 				Logo:        logo,
 				Description: category.Description,
 				SortNo:      category.SortNo,

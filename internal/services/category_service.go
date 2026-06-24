@@ -25,6 +25,72 @@ func newCategoryService() *categoryService {
 type categoryService struct {
 }
 
+func (s *categoryService) CanViewCategory(user *models.User, category *models.Category) bool {
+	if category == nil || category.Status != constants.StatusOk {
+		return false
+	}
+	switch category.Visibility {
+	case constants.CategoryVisibilityPublic:
+		return true
+	case constants.CategoryVisibilityLogin:
+		return user != nil
+	case constants.CategoryVisibilityOwner:
+		return user != nil && user.IsOwner()
+	default:
+		return false
+	}
+}
+
+func (s *categoryService) CanViewTopic(user *models.User, topic *models.Topic) bool {
+	if topic == nil || topic.Status == constants.StatusDeleted {
+		return false
+	}
+	if topic.CategoryId <= 0 {
+		return true
+	}
+	return s.CanViewCategory(user, s.Get(topic.CategoryId))
+}
+
+func (s *categoryService) FilterVisibleCategories(user *models.User, categories []models.Category) []models.Category {
+	if len(categories) == 0 {
+		return nil
+	}
+	visible := make([]models.Category, 0, len(categories))
+	for _, category := range categories {
+		if s.CanViewCategory(user, &category) {
+			visible = append(visible, category)
+		}
+	}
+	return visible
+}
+
+func (s *categoryService) FilterVisibleTopics(user *models.User, topics []models.Topic) []models.Topic {
+	if len(topics) == 0 {
+		return nil
+	}
+	visible := make([]models.Topic, 0, len(topics))
+	for _, topic := range topics {
+		if s.CanViewTopic(user, &topic) {
+			visible = append(visible, topic)
+		}
+	}
+	return visible
+}
+
+func (s *categoryService) HiddenCategoryIds(user *models.User) []int64 {
+	if user != nil && user.IsOwner() {
+		return nil
+	}
+	categories := s.GetCategories()
+	hidden := make([]int64, 0)
+	for _, category := range categories {
+		if !s.CanViewCategory(user, &category) {
+			hidden = append(hidden, category.Id)
+		}
+	}
+	return hidden
+}
+
 func (s *categoryService) Get(id int64) *models.Category {
 	return repositories.CategoryRepository.Get(sqls.DB(), id)
 }
@@ -159,6 +225,21 @@ func (s *categoryService) UpdateChildrenType(parentId int64, categoryType consta
 	return sqls.DB().Transaction(func(tx *gorm.DB) error {
 		for _, c := range children {
 			if err := repositories.CategoryRepository.UpdateColumn(tx, c.Id, "type", categoryType); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *categoryService) UpdateChildrenVisibility(parentId int64, visibility constants.CategoryVisibility) error {
+	children := s.GetChildren(parentId)
+	if len(children) == 0 {
+		return nil
+	}
+	return sqls.DB().Transaction(func(tx *gorm.DB) error {
+		for _, c := range children {
+			if err := repositories.CategoryRepository.UpdateColumn(tx, c.Id, "visibility", visibility); err != nil {
 				return err
 			}
 		}

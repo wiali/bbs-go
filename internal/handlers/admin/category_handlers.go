@@ -89,6 +89,15 @@ func filterCategoryListByCategoryID(list []models.Category, categoryID int64) []
 	return filtered
 }
 
+func normalizeCategoryVisibility(visibility constants.CategoryVisibility) constants.CategoryVisibility {
+	switch visibility {
+	case constants.CategoryVisibilityPublic, constants.CategoryVisibilityLogin, constants.CategoryVisibilityOwner:
+		return visibility
+	default:
+		return constants.CategoryVisibilityPublic
+	}
+}
+
 // PostDelete 删除节点（一级有子节点时禁止）
 func CategoryDetail(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
@@ -151,10 +160,12 @@ func CategoryCreate(ctx *gin.Context) {
 			return
 		}
 		t.Type = parent.Type
+		t.Visibility = parent.Visibility
 	} else {
 		if t.Type == "" {
 			t.Type = constants.CategoryTypeNormal
 		}
+		t.Visibility = normalizeCategoryVisibility(t.Visibility)
 	}
 	t.CreateTime = dates.NowTimestamp()
 	if err := services.CategoryService.Create(t); err != nil {
@@ -206,13 +217,19 @@ func CategoryUpdate(ctx *gin.Context) {
 			return
 		}
 		t.Type = parent.Type
+		t.Visibility = parent.Visibility
 	} else {
 		// 一级节点：校验 type 必填，且编辑时联动更新所有子节点类型
 		if strings.TrimSpace(string(t.Type)) == "" {
 			ginx.WriteJSON(ctx, ginx.ErrorMessage("param: type required"))
 			return
 		}
+		t.Visibility = normalizeCategoryVisibility(t.Visibility)
 		if err := services.CategoryService.UpdateChildrenType(id, t.Type); err != nil {
+			ginx.WriteJSON(ctx, err)
+			return
+		}
+		if err := services.CategoryService.UpdateChildrenVisibility(id, t.Visibility); err != nil {
 			ginx.WriteJSON(ctx, err)
 			return
 		}

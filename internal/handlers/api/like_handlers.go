@@ -35,6 +35,10 @@ func LikeLike(ctx *gin.Context) {
 	case constants.EntityArticle:
 		err = services.UserLikeService.ArticleLike(user.Id, entityId)
 	case constants.EntityComment:
+		if !canViewCommentThread(user, entityId) {
+			ginx.WriteJSON(ctx, false)
+			return
+		}
 		err = services.UserLikeService.CommentLike(user.Id, entityId)
 	}
 	if err != nil {
@@ -66,6 +70,10 @@ func LikeUnlike(ctx *gin.Context) {
 	case constants.EntityArticle:
 		err = services.UserLikeService.ArticleUnLike(user.Id, entityId)
 	case constants.EntityComment:
+		if !canViewCommentThread(user, entityId) {
+			ginx.WriteJSON(ctx, false)
+			return
+		}
 		err = services.UserLikeService.CommentUnLike(user.Id, entityId)
 	}
 	if err != nil {
@@ -89,6 +97,15 @@ func LikeLikedIds(ctx *gin.Context) {
 	)
 	if user != nil {
 		likedEntityIds = services.UserLikeService.IsLiked(user.Id, req.EntityType, entityIds)
+		if req.EntityType == constants.EntityTopic {
+			visibleLikedEntityIds := make([]int64, 0, len(likedEntityIds))
+			for _, entityId := range likedEntityIds {
+				if services.CategoryService.CanViewTopic(user, services.TopicService.Get(entityId)) {
+					visibleLikedEntityIds = append(visibleLikedEntityIds, entityId)
+				}
+			}
+			likedEntityIds = visibleLikedEntityIds
+		}
 	}
 	ginx.WriteJSON(ctx, likedEntityIds)
 
@@ -108,6 +125,14 @@ func LikeLiked(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, false)
 		return
 	} else {
+		if req.EntityType == constants.EntityTopic && !services.CategoryService.CanViewTopic(user, services.TopicService.Get(entityId)) {
+			ginx.WriteJSON(ctx, false)
+			return
+		}
+		if req.EntityType == constants.EntityComment && !canViewCommentThread(user, entityId) {
+			ginx.WriteJSON(ctx, false)
+			return
+		}
 		liked := services.UserLikeService.Exists(user.Id, req.EntityType, entityId)
 		ginx.WriteJSON(ctx, liked)
 		return

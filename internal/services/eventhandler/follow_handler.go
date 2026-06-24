@@ -21,6 +21,9 @@ func handleFollowEvent(i interface{}) {
 			if topic.Status != constants.StatusOk {
 				continue
 			}
+			if !services.CategoryService.CanViewTopic(services.UserService.Get(e.UserId), &topic) {
+				continue
+			}
 			_ = services.UserFeedService.Create(&models.UserFeed{
 				UserId:     e.UserId,
 				DataType:   constants.EntityTopic,
