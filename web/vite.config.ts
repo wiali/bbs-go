@@ -3,15 +3,16 @@ import { reactRouter } from "@react-router/dev/vite"
 import { defineConfig, loadEnv, type Plugin } from "vite"
 
 function stripSpaRouteLoaders(): Plugin {
-  const appRoutesDir = `${path.sep}app${path.sep}routes${path.sep}`
+  const appRoutesDir = "/app/routes/"
 
   return {
     name: "bbsgo-strip-spa-route-loaders",
     enforce: "pre",
     transform(code, id) {
+      const normalizedId = id.replaceAll(path.sep, "/")
       if (
         process.env.BBSGO_WEB_SPA !== "true" ||
-        !id.includes(appRoutesDir)
+        !normalizedId.includes(appRoutesDir)
       ) {
         return null
       }
